@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AVM TEKNİK - Servis Takip ve Yönetim</title>
+    <meta name="theme-color" content="#075EA8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        h1, h2, h3, .font-heading { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="text-slate-800 pb-24">
+
+    <!-- Dinamik Ana Konteyner -->
+    <div id="root-app"></div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        let currentView = 'login'; // 'login', 'admin', 'customer_tracking'
+        let currentTab = 'records'; // 'records', 'new', 'history'
+        let searchQuery = '';
+        let filterStatus = 'Tümü';
+
+        // Orijinal logonun SVG formatı
+        const LOGO_SVG = `
+            <svg viewBox="0 0 520 180" class="h-12 object-contain mx-auto" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 0 100 Q 50 120, 100 90 T 200 130 T 300 70 T 400 110 T 520 90" fill="none" stroke="#94a3b8" stroke-width="4" opacity="0.6"/>
+                <path d="M 0 110 Q 60 130, 120 80 T 220 120 T 320 50 T 420 100 T 520 80" fill="none" stroke="#075EA8" stroke-width="5"/>
+                <text x="35" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#075EA8" letter-spacing="-5">A</text>
+                <text x="135" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#075EA8" letter-spacing="-5">V</text>
+                <text x="245" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#64748b" letter-spacing="-5">M</text>
+            </svg>
+        `;
+
+        let records = JSON.parse(localStorage.getItem('avm_service_records')) || [
+            {
+                trackingCode: "AVM-2026-08241",
+                customer: { name: "Ayşe Yılmaz", phone: "05324187216" },
+                device: { name: "Neurosoft EEG Cihazı", serialNo: "NS-998214", issue: "Kanal 3 sinyal almıyor.", image: "", technicianNote: "Anakart kontrol edildi, sinyal entegresi değiştirildi, test aşamasında." },
+                status: "İnceleme Yapılıyor",
+                createdAt: "24 Ağustos 2026 10:42",
+                history: [
+                    { status: "Cihaz Alındı", date: "24 Ağustos 2026 - 09:18" },
+                    { status: "İnceleme Yapılıyor", date: "24 Ağustos 2026 - 10:42" }
+                ]
+            }
+        ];
+
+        function saveRecords() {
+            localStorage.setItem('avm_service_records', JSON.stringify(records));
+        }
+
+        function render() {
+            const root = document.getElementById('root-app');
+            if (currentView === 'login') {
+                root.innerHTML = renderLoginScreen();
+            } else if (currentView === 'customer_tracking') {
+                root.innerHTML = renderCustomerPublicTracking();
+            } else if (currentView === 'admin') {
+                root.innerHTML = renderAdminLayout();
+            }
+        }
+
+        // 1. GİRİŞ EKRANI
+        function renderLoginScreen() {
+            return `
+                <div class="min-h-screen flex flex-col justify-center items-center p-4 max-w-md mx-auto">
+                    <div class="bg-white w-full p-6 rounded-2xl shadow-lg border border-slate-100 space-y-6">
+                        <div class="text-center space-y-3">
+                            <div class="inline-block p-2 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm w-full py-4">
+                                ${LOGO_SVG}
+                            </div>
+                            <p class="text-xs text-slate-500 font-medium">Servis Takip ve Yönetim Sistemi</p>
+                        </div>
+
+                        <!-- Admin Giriş Formu -->
+                        <form onsubmit="handleAdminLogin(event)" class="space-y-3 border-t pt-4">
+                            <h2 class="text-xs font-bold text-slate-600 uppercase tracking-wider">Tekniker / Admin Girişi</h2>
+                            <div>
+                                <input type="text" id="adminUser" required placeholder="Kullanıcı Adı" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#075EA8]">
+                            </div>
+                            <div>
+                                <input type="password" id="adminPass" required placeholder="Şifre" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#075EA8]">
+                            </div>
+                            <button type="submit" class="w-full bg-[#075EA8] text-white py-3 rounded-xl font-bold text-sm shadow hover:bg-blue-700 transition">
+                                Admin Girişi Yap
+                            </button>
+                        </form>
+
+                        <div class="relative flex py-2 items-center">
+                            <div class="flex-grow border-t border-slate-200"></div>
+                            <span class="flex-shrink mx-4 text-slate-400 text-xs">veya</span>
+                            <div class="flex-grow border-t border-slate-200"></div>
+                        </div>
+
+                        <!-- Müşteri Takip Butonu -->
+                        <button onclick="currentView='customer_tracking'; render();" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold text-sm shadow hover:bg-emerald-700 transition flex items-center justify-center space-x-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <span>Cihaz Takip (Giriş Yapmadan Sorgula)</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('adminUser').value.trim();
+            const p = document.getElementById('adminPass').value.trim();
+
+            if (u === 'teknik@avm' && p === '223344aA') {
+                currentView = 'admin';
+                currentTab = 'records';
+                render();
+            } else {
+                alert('Hatalı kullanıcı adı veya şifre!');
+            }
+        }
+
+        // 2. MÜŞTERİ CİHAZ TAKİP EKRANI
+        function renderCustomerPublicTracking() {
+            return `
+                <div class="min-h-screen p-4 max-w-md mx-auto space-y-4">
+                    <header class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                        <div class="flex items-center space-x-2 h-8">
+                            <svg viewBox="0 0 520 180" class="h-8 w-auto" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M 0 110 Q 60 130, 120 80 T 220 120 T 320 50 T 420 100 T 520 80" fill="none" stroke="#075EA8" stroke-width="6"/>
+                                <text x="35" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#075EA8" letter-spacing="-5">A</text>
+                                <text x="135" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#075EA8" letter-spacing="-5">V</text>
+                                <text x="245" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#64748b" letter-spacing="-5">M</text>
+                            </svg>
+                        </div>
+                        <button onclick="currentView='login'; render();" class="text-xs text-[#075EA8] font-bold bg-blue-50 px-3 py-1.5 rounded-lg">← Girişe Dön</button>
+                    </header>
+
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                        <div>
+                            <h2 class="font-bold text-base text-slate-800 font-heading mb-1">Müşteri Cihaz Takip</h2>
+                            <p class="text-xs text-slate-500 mb-3">Takip numaranızı girerek cihazınızın durumunu ve tekniker notlarını anında görebilirsiniz.</p>
+                            
+                            <label class="text-xs font-bold text-slate-600 block mb-1">Takip Numarası</label>
+                            <div class="flex space-x-2">
+                                <input type="text" id="publicTrackInput" placeholder="Örn: AVM-2026-..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                <button onclick="publicTrackDevice()" class="bg-emerald-600 text-white px-5 rounded-xl font-bold text-sm shadow">Sorgula</button>
+                            </div>
+                        </div>
+                        <div id="publicTrackingResult" class="mt-4"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function publicTrackDevice() {
+            const val = document.getElementById('publicTrackInput').value.trim().toUpperCase();
+            const resDiv = document.getElementById('publicTrackingResult');
+            const rec = records.find(r => r.trackingCode === val);
+
+            if (!rec) {
+                resDiv.innerHTML = `<div class="p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100 font-medium">Bu takip numarasına ait cihaz bulunamadı. Lütfen kontrol ediniz.</div>`;
+                return;
+            }
+
+            const steps = ['Cihaz Alındı', 'İnceleme Yapılıyor', 'Onarım Bekliyor', 'Onarımda', 'Hazır', 'Teslim Edildi'];
+
+            resDiv.innerHTML = `
+                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md">${rec.trackingCode}</span>
+                        <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">${rec.status}</span>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-sm">${rec.device.name}</h4>
+                        <p class="text-xs text-slate-500">Seri No: <strong>${rec.device.serialNo}</strong></p>
+                    </div>
+
+                    ${rec.device.image ? `<div class="mt-2"><img src="${rec.device.image}" class="w-full h-40 object-cover rounded-xl border border-slate-200" alt="Cihaz Görseli"></div>` : ''}
+
+                    <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl space-y-1">
+                        <span class="text-[11px] font-bold text-[#075EA8] block">👨‍🔧 Tekniker Notu / Açıklama:</span>
+                        <p class="text-xs text-slate-700 italic">${rec.device.technicianNote || "Henüz tekniker notu eklenmedi."}</p>
+                    </div>
+
+                    <div class="border-t pt-2 text-xs space-y-1">
+                        <strong class="text-slate-600">Onarım Aşamaları:</strong>
+                        ${steps.map((st, idx) => `
+                            <div class="flex items-center space-x-2 ${rec.status === st ? 'text-emerald-700 font-bold' : 'text-slate-400'}">
+                                <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${rec.status === st ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}">${idx+1}</span>
+                                <span>${st}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 3. ADMIN PANEL LAYOUT & VIEWS
+        function renderAdminLayout() {
+            return `
+                <header class="bg-white text-slate-800 p-3 shadow-sm sticky top-0 z-50 flex justify-between items-center border-b border-slate-200">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-7 w-auto">
+                            <svg viewBox="0 0 520 180" class="h-7 w-auto" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M 0 110 Q 60 130, 120 80 T 220 120 T 320 50 T 420 100 T 520 80" fill="none" stroke="#075EA8" stroke-width="6"/>
+                                <text x="35" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#075EA8" letter-spacing="-5">A</text>
+                                <text x="135" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#075EA8" letter-spacing="-5">V</text>
+                                <text x="245" y="145" font-family="Manrope, sans-serif" font-weight="800" font-size="110" fill="#64748b" letter-spacing="-5">M</text>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="font-bold text-[11px] tracking-wide font-heading text-slate-700">TEKNİK SERVİS</h1>
+                            <p class="text-[9px] text-slate-400">teknik@avm</p>
+                        </div>
+                    </div>
+                    <button onclick="currentView='login'; render();" class="bg-red-50 text-red-600 border border-red-200 text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:bg-red-100 transition">
+                        Çıkış Yap
+                    </button>
+                </header>
+
+                <main class="p-4 max-w-md mx-auto" id="admin-content">
+                    ${currentTab === 'records' ? renderAdminRecordsView() : currentTab === 'new' ? renderAdminNewRecordView() : renderAdminHistoryView()}
+                </main>
+
+                <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around py-2.5 shadow-lg max-w-md mx-auto z-50">
+                    <button onclick="currentTab='records'; render();" class="flex flex-col items-center text-xs ${currentTab === 'records' ? 'text-[#075EA8] font-bold' : 'text-slate-400 font-medium'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        Kayıtlar
+                    </button>
+                    <button onclick="currentTab='new'; render();" class="flex flex-col items-center text-xs ${currentTab === 'new' ? 'text-[#075EA8] font-bold' : 'text-slate-400 font-medium'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Yeni Kayıt
+                    </button>
+                    <button onclick="currentTab='history'; render();" class="flex flex-col items-center text-xs ${currentTab === 'history' ? 'text-[#075EA8] font-bold' : 'text-slate-400 font-medium'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Geçmiş
+                    </button>
+                </nav>
+            `;
+        }
+
+        function renderAdminRecordsView() {
+            const filtered = records.filter(r => {
+                const q = searchQuery.toLowerCase();
+                const matchesSearch = r.trackingCode.toLowerCase().includes(q) ||
+                                      r.customer.name.toLowerCase().includes(q) ||
+                                      r.device.name.toLowerCase().includes(q) ||
+                                      r.device.serialNo.toLowerCase().includes(q);
+                const matchesStatus = filterStatus === 'Tümü' || r.status === filterStatus;
+                return matchesSearch && matchesStatus;
+            });
+
+            return `
+                <div class="space-y-4">
+                    <div class="relative">
+                        <input type="text" placeholder="Takip no, müşteri, cihaz veya seri no ara..." value="${searchQuery}" oninput="searchQuery = this.value; render();"
+                            class="w-full p-3 pl-10 bg-white border border-slate-200 rounded-xl shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#075EA8]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 absolute left-3 top-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+
+                    <div class="flex space-x-2 overflow-x-auto pb-1 text-xs">
+                        ${['Tümü', 'Cihaz Alındı', 'İnceleme Yapılıyor', 'Onarım Bekliyor', 'Onarımda', 'Hazır', 'Teslim Edildi'].map(st => `
+                            <button onclick="filterStatus = '${st}'; render();" class="px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition ${filterStatus === st ? 'bg-[#075EA8] text-white shadow' : 'bg-white text-slate-600 border border-slate-200'}">
+                                ${st}
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <div class="space-y-3">
+                        ${filtered.length === 0 ? `
+                            <div class="bg-white p-8 rounded-2xl border border-slate-100 text-center shadow-sm">
+                                <p class="text-slate-400 text-sm">Kayıt bulunamadı.</p>
+                            </div>
+                        ` : filtered.map(rec => `
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 relative space-y-2">
+                                <div class="flex justify-between items-start">
+                                    <span class="font-bold text-xs text-[#075EA8] bg-blue-50 px-2.5 py-1 rounded">${rec.trackingCode}</span>
+                                    <div class="flex items-center space-x-2">
+                                        <button onclick="openEditModal('${rec.trackingCode}')" class="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold px-2.5 py-1 rounded transition">✏️ Düzenle</button>
+                                        <select onchange="updateStatus('${rec.trackingCode}', this.value)" class="text-xs font-semibold px-2 py-1 rounded-full border border-slate-200 bg-slate-50 focus:outline-none">
+                                            ${['Cihaz Alındı', 'İnceleme Yapılıyor', 'Onarım Bekliyor', 'Onarımda', 'Hazır', 'Teslim Edildi', 'İptal'].map(s => `
+                                                <option value="${s}" ${rec.status === s ? 'selected' : ''}>${s}</option>
+                                            `).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+                                <h3 class="font-bold text-slate-800 text-sm">${rec.device.name}</h3>
+                                <p class="text-xs text-slate-500">Seri No: <strong class="text-slate-700">${rec.device.serialNo}</strong> • ${rec.customer.name}</p>
+                                
+                                ${rec.device.image ? `<div class="mt-2"><img src="${rec.device.image}" class="w-full h-32 object-cover rounded-lg border border-slate-200" alt="Cihaz Görseli"></div>` : ''}
+
+                                <div class="bg-slate-50 p-2 rounded-xl space-y-1">
+                                    <label class="text-[10px] font-bold text-slate-600 block">Tekniker Notu (Müşteri ekranında görünür):</label>
+                                    <div class="flex space-x-1">
+                                        <input type="text" id="note-${rec.trackingCode}" value="${rec.device.technicianNote || ''}" placeholder="Cihaz durumu hakkında not yaz..." class="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none">
+                                        <button onclick="saveTechnicianNote('${rec.trackingCode}')" class="bg-[#075EA8] text-white px-3 py-1 rounded-lg text-xs font-bold shadow">Kaydet</button>
+                                    </div>
+                                </div>
+
+                                <div class="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-400">
+                                    <span>Kayıt: ${rec.createdAt}</span>
+                                    <div class="space-x-2">
+                                        <button onclick="sendWhatsApp('${rec.customer.phone}', '${rec.trackingCode}', '${rec.device.name}')" class="text-emerald-600 font-bold hover:underline">💬 WhatsApp</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Kayıt Düzenleme Modal/Alan -->
+                <div id="editModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+                        <div class="flex justify-between items-center border-b pb-3">
+                            <h3 class="font-bold text-sm text-slate-800">Servis Kaydını Düzenle</h3>
+                            <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+                        </div>
+                        <input type="hidden" id="editTrackingCode">
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="font-bold text-slate-600 block mb-1">Müşteri Ad Soyad</label>
+                                <input type="text" id="editCustName" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="font-bold text-slate-600 block mb-1">Cep Telefonu</label>
+                                <input type="text" id="editCustPhone" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="font-bold text-slate-600 block mb-1">Cihaz Adı / Model</label>
+                                <input type="text" id="editDevName" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="font-bold text-slate-600 block mb-1">Seri Numarası (S/N)</label>
+                                <input type="text" id="editDevSerial" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="font-bold text-slate-600 block mb-1">Cihaz Görseli</label>
+                                <input type="file" id="editDevImage" accept="image/*" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                            </div>
+                            <div>
+                                <label class="font-bold text-slate-600 block mb-1">Arıza / Şikâyet</label>
+                                <textarea id="editDevIssue" rows="2" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none"></textarea>
+                            </div>
+                        </div>
+                        <div class="flex space-x-2 pt-2">
+                            <button onclick="closeEditModal()" class="w-1/2 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold text-xs">İptal</button>
+                            <button onclick="saveEditedRecord()" class="w-1/2 bg-[#075EA8] text-white py-2.5 rounded-xl font-bold text-xs shadow">Güncelle</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdminNewRecordView() {
+            return `
+                <form onsubmit="handleFormSubmit(event)" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                    <h2 class="font-bold text-base text-slate-800 border-b pb-3">Yeni Servis Kaydı Aç</h2>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Müşteri Ad Soyad *</label>
+                        <input type="text" id="custName" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#075EA8]" placeholder="Örn: Ahmet Yılmaz">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Cep Telefonu *</label>
+                        <input type="tel" id="custPhone" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#075EA8]" placeholder="0532xxxxxxx">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Cihaz Adı / Marka / Model *</label>
+                        <input type="text" id="devName" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#075EA8]" placeholder="Örn: EEG / TMS Cihazı vb.">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Seri Numarası (S/N) *</label>
+                        <input type="text" id="devSerial" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:outline-none focus:ring-2 focus:ring-[#075EA8]" placeholder="Cihaz seri numarası...">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Cihaz Görseli (İsteğe Bağlı)</label>
+                        <input type="file" id="devImage" accept="image/*" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Arıza / Şikâyet *</label>
+                        <textarea id="devIssue" required rows="2" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#075EA8]" placeholder="Müşteri şikayeti..."></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-[#075EA8] text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition">
+                        Kayıt Oluştur
+                    </button>
+                </form>
+            `;
+        }
+
+        function renderAdminHistoryView() {
+            return `
+                <div class="space-y-4">
+                    <div class="bg-[#075EA8] text-white p-4 rounded-2xl shadow-sm">
+                        <h2 class="font-bold text-base font-heading">Servis Arşivi</h2>
+                        <p class="text-xs text-blue-100 mt-1">Toplam Arşiv Kaydı: <strong>${records.length}</strong></p>
+                    </div>
+                    <div class="space-y-3">
+                        ${records.map(rec => `
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="font-bold text-xs text-[#075EA8]">${rec.trackingCode}</span>
+                                    <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">${rec.status}</span>
+                                </div>
+                                <h3 class="font-bold text-slate-800 text-sm">${rec.device.name}</h3>
+                                <p class="text-xs text-slate-500">Seri No: ${rec.device.serialNo} • ${rec.customer.name}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function openEditModal(code) {
+            const rec = records.find(r => r.trackingCode === code);
+            if (!rec) return;
+
+            document.getElementById('editTrackingCode').value = rec.trackingCode;
+            document.getElementById('editCustName').value = rec.customer.name;
+            document.getElementById('editCustPhone').value = rec.customer.phone;
+            document.getElementById('editDevName').value = rec.device.name;
+            document.getElementById('editDevSerial').value = rec.device.serialNo;
+            document.getElementById('editDevIssue').value = rec.device.issue || '';
+            document.getElementById('editDevImage').value = ''; // dosya input sıfırlama
+
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+
+        function saveEditedRecord() {
+            const code = document.getElementById('editTrackingCode').value;
+            const rec = records.find(r => r.trackingCode === code);
+            const imageFile = document.getElementById('editDevImage').files[0];
+
+            if (rec) {
+                rec.customer.name = document.getElementById('editCustName').value;
+                rec.customer.phone = document.getElementById('editCustPhone').value;
+                rec.device.name = document.getElementById('editDevName').value;
+                rec.device.serialNo = document.getElementById('editDevSerial').value.toUpperCase();
+                rec.device.issue = document.getElementById('editDevIssue').value;
+
+                const updateAndFinish = () => {
+                    saveRecords();
+                    closeEditModal();
+                    alert("Kayıt başarıyla güncellendi!");
+                    render();
+                };
+
+                if (imageFile) {
+                    const reader = new FileReader();
+                    reader.onload = function(uploadEvent) {
+                        rec.device.image = uploadEvent.target.result;
+                        updateAndFinish();
+                    };
+                    reader.readAsDataURL(imageFile);
+                } else {
+                    updateAndFinish();
+                }
+            }
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('custName').value;
+            const phone = document.getElementById('custPhone').value;
+            const devName = document.getElementById('devName').value;
+            const devSerial = document.getElementById('devSerial').value.toUpperCase();
+            const issue = document.getElementById('devIssue').value;
+            const imageFile = document.getElementById('devImage').files[0];
+
+            const randomNum = Math.floor(10000 + Math.random() * 90000);
+            const trackingCode = `AVM-2026-${randomNum}`;
+            const nowFormatted = new Date().toLocaleString('tr-TR');
+
+            const processRecord = (imageUrl) => {
+                const newRec = {
+                    trackingCode,
+                    customer: { name, phone },
+                    device: { name: devName, serialNo: devSerial, issue, image: imageUrl || "", technicianNote: "Cihaz servise kabul edildi, inceleniyor." },
+                    status: 'Cihaz Alındı',
+                    createdAt: nowFormatted,
+                    history: [{ status: 'Cihaz Alındı', date: nowFormatted }]
+                };
+
+                records.unshift(newRec);
+                saveRecords();
+
+                if(confirm(`Kayıt oluşturuldu! Takip No: ${trackingCode}\nMüşteriye WhatsApp ile göndermek ister misiniz?`)) {
+                    sendWhatsApp(phone, trackingCode, devName);
+                }
+
+                currentTab = 'records';
+                render();
+            };
+
+            if (imageFile) {
+                const reader = new FileReader();
+                reader.onload = function(uploadEvent) {
+                    processRecord(uploadEvent.target.result);
+                };
+                reader.readAsDataURL(imageFile);
+            } else {
+                processRecord("");
+            }
+        }
+
+        function updateStatus(code, newStatus) {
+            const rec = records.find(r => r.trackingCode === code);
+            if (rec) {
+                rec.status = newStatus;
+                const nowFormatted = new Date().toLocaleString('tr-TR');
+                rec.history.push({ status: newStatus, date: nowFormatted });
+                saveRecords();
+                render();
+            }
+        }
+
+        function saveTechnicianNote(code) {
+            const rec = records.find(r => r.trackingCode === code);
+            const noteVal = document.getElementById('note-' + code).value;
+            if (rec) {
+                rec.device.technicianNote = noteVal;
+                saveRecords();
+                alert("Tekniker notu güncellendi!");
+                render();
+            }
+        }
+
+        function formatPhone(phone) {
+            let p = phone.replace(/\D/g, '');
+            if (p.startsWith('0')) p = p.substring(1);
+            if (!p.startsWith('90')) p = '90' + p;
+            return p;
+        }
+
+        function sendWhatsApp(phone, trackingCode, deviceName) {
+            const message = `Sayın Müşterimiz, ${deviceName} cihazınızın AVM Teknik servis takip numarası: *${trackingCode}*. Cihazınızın durumunu giriş yapmadan web sitemizden takip edebilirsiniz.`;
+            const cleanPhone = formatPhone(phone);
+            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        // İlk açılış
+        render();
+    </script>
+</body>
+</html>
