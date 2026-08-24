@@ -12,7 +12,6 @@ workflows:
           node ./node_modules/@capacitor/cli/bin/capacitor sync ios
       - name: Build iOS App
         script: |
-          cd ios
-          xcodebuild -workspace App/App.xcworkspace -scheme App -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
     artifacts:
       - ios/App/build/**/*.app
