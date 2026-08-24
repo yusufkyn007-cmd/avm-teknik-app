@@ -7,9 +7,13 @@ workflows:
       - name: Install dependencies
         script: |
           npm install
-      - name: Sync Capacitor
+      - name: Build Web Assets
         script: |
-          node ./node_modules/@capacitor/cli/bin/capacitor sync ios
+          npm run build --if-present
+      - name: Add iOS Platform & Sync
+        script: |
+          npx cap add ios
+          npx cap sync ios
       - name: Build iOS App
         script: |
           xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
